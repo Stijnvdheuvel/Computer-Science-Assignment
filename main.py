@@ -20,6 +20,7 @@ np.random.seed(12345)
 
 
 def replace_with_rounded(match):
+    """ Rounds up values in inch units found in product titles. """
     value_str = match.group(1)
     # If the value doesn't have a decimal point, insert one after the first two digits
     if '.' not in value_str:
@@ -30,6 +31,7 @@ def replace_with_rounded(match):
 
 
 def clean_and_normalize(text, extensions, is_title):
+    """ Normalizes text by standardizing units and cleaning it for further processing. """
     # Step 1: Transform units into standardized format
     unit_transformations = {
         r'\b(\d+(\.\d+)?)\s*(?:inch|inches|"|-inch| inch|  inch|in)\b': r'\1inch ',
@@ -87,6 +89,7 @@ def clean_and_normalize(text, extensions, is_title):
 
 
 def get_all_brands(data, brand_file_path_input):
+    """ Extracts and saves all unique brand names from the data. """
     # Read existing brands from the file
     with open(brand_file_path_input, 'r') as txt_file:
         existing_brands = {line.strip().lower() for line in txt_file}
@@ -115,6 +118,7 @@ def get_all_brands(data, brand_file_path_input):
 
 
 def get_brand(product_entry, all_brands):
+    """ Determines the brand of a product from its 'brand' feature, 'title, or 'url'. """
     keys = product_entry.get('featuresMap', {}).keys()
 
     # Search for a key containing the text 'brand' in featuresMap
@@ -140,16 +144,19 @@ def get_brand(product_entry, all_brands):
 
 
 def read_data(json_file_path_):
+    """ Reads JSON data from a file. """
     with open(json_file_path_, 'r') as file:
         return json.load(file)
 
 
 def save_to_json(data, file_path):
+    """ Saves data to a JSON file. """
     with open(file_path, 'w') as file:
         json.dump(data, file, indent=2)
 
 
 def clean_and_normalize_data(data, brand_file_path_input, extensions):
+    """ Applies cleaning and normalization to the entire dataset. """
     all_brands = get_all_brands(data, brand_file_path_input)
     target_index_mapping_ = {}
     target_index_counter = 0
@@ -175,6 +182,7 @@ def clean_and_normalize_data(data, brand_file_path_input, extensions):
 
 def clean_and_save_data(original_file_path_input, brand_file_path_input, clean_file_path_input,
                         clean_file_path_extension_input):
+    """ Cleans original data with and without extensions and saves it as a new JSON file. """
     # Read the original data
     data_original = read_data(original_file_path_input)
 
@@ -194,6 +202,7 @@ def clean_and_save_data(original_file_path_input, brand_file_path_input, clean_f
 # -------------------------------- BOOTSTRAPPING ALGORITHM ----------------------------------
 
 def find_band_row_combination(k_minhash_input, t_value_):
+    """ Finds the closest possible combination of bands and rows for LSH given a t-value. """
     closest_solution = None
     min_diff = float('inf')
 
@@ -211,11 +220,13 @@ def find_band_row_combination(k_minhash_input, t_value_):
 
 
 def extract_model_words(parameter, pattern_compiled):
+    """ Extracts model words from a string based on a compiled regex pattern. """
     matches = pattern_compiled.findall(parameter)
     return {match[0] for match in matches}
 
 
 def round_up_numerical_part(word):
+    """ Rounds up the numerical part of a KVP model word. """
     numerical_part_match = pattern_numerical_part_compiled.search(word)
     if numerical_part_match:
         numerical_part = numerical_part_match.group()
@@ -225,6 +236,7 @@ def round_up_numerical_part(word):
 
 
 def get_values(product, pattern_compiled, round_numerical_kvp):
+    """ Extracts model words from product features for Key Value Pairs. """
     model_words_kvp_func = set()
     features_map_values_func = product.get('featuresMap', {}).values()
     for value_func in features_map_values_func:
@@ -240,11 +252,13 @@ def get_values(product, pattern_compiled, round_numerical_kvp):
 
 
 def get_values2(product):
+    """ Extracts value strings from product features for Key Value Pairs. """
     features_map_values_func = product.get('featuresMap', {}).values()
     return features_map_values_func
 
 
 def extract_unique_model_words(data, round_numerical_kvp):
+    """ Extracts and returns unique model words from the dataset. """
     unique_mw_title_set = set()
     unique_mw_kvp_set = set()
 
@@ -270,6 +284,7 @@ def extract_unique_model_words(data, round_numerical_kvp):
 
 
 def process_data_mw(data, round_numerical_kvp):
+    """ Processes the data to extract model words and determine a close k_minhash of ~50% of unique mw. """
     unique_mw_title, unique_mw_kvp = extract_unique_model_words(data, round_numerical_kvp)
     unique_mw = list(unique_mw_title)
     unique_mw.extend(list(unique_mw_kvp))
@@ -281,6 +296,7 @@ def process_data_mw(data, round_numerical_kvp):
 
 
 def create_binary_matrix(data, unique_mw_list, num_unique_mw_title, n_products, round_numerical_kvp):
+    """ Creates a binary matrix representation of the data using Algorithm 1 of Hartveld et al. """
     num_unique_mw = len(unique_mw_list)
     binary_matrix_temp = np.zeros((num_unique_mw, n_products), dtype=int)
     j = 0
@@ -317,6 +333,7 @@ def is_prime(num):
 
 
 def generate_hash_functions(k):
+    """ Generates k hash functions for creating minhash signatures. """
     hash_functions_list = []
     p_ = np.random.randint(2 * k, 3 * k)
     a_ = 0
@@ -332,6 +349,7 @@ def generate_hash_functions(k):
 
 
 def compute_signature_matrix(binary_matrix_input, k_minhash_):
+    """ Computes the signature matrix from a binary matrix for LSH using minhashing. """
     hash_functions = generate_hash_functions(k_minhash_)
     num_columns = binary_matrix_input.shape[1]
     sig_matrix = np.full((k_minhash_, num_columns), np.inf)
@@ -347,6 +365,7 @@ def compute_signature_matrix(binary_matrix_input, k_minhash_):
 
 
 def locality_sensitive_hashing(signature_matrix_input, bands_input, rows_per_band_input):
+    """ Applies Locality Sensitive Hashing to a signature matrix with specified bands and rows. """
     assert signature_matrix_input.shape[0] == bands_input * rows_per_band_input, \
         "Invalid choice of bands and rows_per_band "
     buckets = {}
@@ -369,6 +388,7 @@ def locality_sensitive_hashing(signature_matrix_input, bands_input, rows_per_ban
 
 
 def same_brand(product1, product2):
+    """ Checks if two products are from the same brand. """
     brand1 = product1.get('brand_name_new', '')
     brand2 = product2.get('brand_name_new', '')
     # Return true if different brand
@@ -376,6 +396,7 @@ def same_brand(product1, product2):
 
 
 def same_shop(product1, product2):
+    """ Checks if two products are from the same shop. """
     shop1 = product1.get('shop', '')
     shop2 = product2.get('shop', '')
     return shop1.lower() == shop2.lower()
@@ -383,6 +404,7 @@ def same_shop(product1, product2):
 
 @lru_cache(maxsize=None)
 def calc_qgram_sim(str1, str2, q=3):
+    """ Calculates the q-gram similarity between two strings with dummy variables at start and end of each string. """
     str1 = '#' * (q - 1) + str1 + '#' * (q - 1)  # Dummy variables at start and end of string
     str2 = '#' * (q - 1) + str2 + '#' * (q - 1)  # Dummy variables at start and end of string
 
@@ -394,6 +416,7 @@ def calc_qgram_sim(str1, str2, q=3):
 
 
 def get_mw_kvp_subset(product, nmk, pattern_compiled):
+    """ Gets a subset of product KVP model words from a set of Key Value Pairs. """
     mw_set = set()
     for key in nmk:
         value = product.get('featuresMap').get(key, '')
@@ -402,6 +425,7 @@ def get_mw_kvp_subset(product, nmk, pattern_compiled):
 
 
 def calc_cosine_sim(title1, title2):
+    """ Calculates the cosine similarity between two product titles. """
     words1 = set(re.findall(r'\b\w+\b', title1.lower()))
     words2 = set(re.findall(r'\b\w+\b', title2.lower()))
     intersection = len(words1.intersection(words2))
@@ -411,12 +435,14 @@ def calc_cosine_sim(title1, title2):
 
 
 def calc_lv_sim(string1, string2):
+    """ Calculates the normalized Levenshtein similarity between two strings. """
     abs_lv = editdistance.eval(string1, string2)
     lv_sim_strings = abs_lv / max(len(string1), len(string2))
     return lv_sim_strings
 
 
 def calc_avg_lv_sim(set1, set2):
+    """ Calculates the average Levenshtein similarity between sets of strings. """
     sum_lv_sim_sets = 0
     tot_sum = 0
     for x in set1:
@@ -430,6 +456,8 @@ def calc_avg_lv_sim(set1, set2):
 
 
 def calc_avg_lv_sim_mw(set1, set2, threshold):
+    """ Calculates the average Levenshtein similarity between sets of model words over only model words that have
+    approximately the same the non-numeric part and the numeric part is the same. """
     sum_lv_sim_sets = 0
     tot_sum = 0
 
@@ -456,7 +484,8 @@ def calc_avg_lv_sim_mw(set1, set2, threshold):
     return avg_lv_sim_sets, numeric_check
 
 
-def get_title_sim(product1, product2, alpha, beta, threshold=0.5, delta=0.4):  # title model word method
+def get_title_sim(product1, product2, alpha, beta, threshold=0.5, delta=0.4):
+    """ Calculates title similarity using the Title Model Words Method. """
     title1 = product1.get('title', '')
     title2 = product2.get('title', '')
     cos_similarity = calc_cosine_sim(title1, title2)
@@ -480,6 +509,7 @@ def get_title_sim(product1, product2, alpha, beta, threshold=0.5, delta=0.4):  #
 
 
 def calc_dissimilarity(i, j, product1, product2, alpha, beta, gamma, mu, true_pairs_input):
+    """ Calculates the final dissimilarity score between two products. """
     is_true_pair = (i, j) in true_pairs_input
 
     if same_shop(product1, product2) or not same_brand(product1, product2):
@@ -545,6 +575,7 @@ def calc_dissimilarity(i, j, product1, product2, alpha, beta, gamma, mu, true_pa
 
 
 def get_dissimilarity_matrix(data, candidate_pairs_input, n_products_, alpha, beta, gamma, mu, true_pairs_input):
+    """ Generates a full dissimilarity matrix from product data using given candidate pairs. """
     dissimilarity_scores_matrix = np.full((n_products_, n_products_), np.inf)
     np.fill_diagonal(dissimilarity_scores_matrix, 0)
     non_infinity_count = 0
@@ -559,6 +590,9 @@ def get_dissimilarity_matrix(data, candidate_pairs_input, n_products_, alpha, be
 
 
 def save_all_dissimilarity_matrices(data, data_name, parameter_ranges_input, true_pairs_input, n_products):
+    """ Saves all dissimilarity matrices for different combinations of algorithm parameters, to run more
+    efficient model optimization and evaluation at a data set of this size. For larger datasets, use
+    get_dissimilarity_matrix only using the data and candidate pairs. """
     all_possible_pairs = get_all_pairs(data)
     base_dir = f'Matrices/{data_name}/'
     os.makedirs(base_dir, exist_ok=True)  # Create directory if it doesn't exist
@@ -580,6 +614,8 @@ def save_all_dissimilarity_matrices(data, data_name, parameter_ranges_input, tru
 
 
 def load_dissimilarity_matrix(data_name, key):
+    """ Loads a saved dissimilarity matrix based on the given key specified as (alpha, beta, gamma, mu) and
+    data name. """
     base_dir = f'Matrices/{data_name}/'
     file_path = os.path.join(base_dir, f'{key}.npy')
 
@@ -591,11 +627,14 @@ def load_dissimilarity_matrix(data_name, key):
 
 
 def extract_sub_matrices(matrix, indices):
+    """ Extracts a submatrix from the given full dissimilarity matrix based on specified indices. """
     submatrix = matrix[np.ix_(indices, indices)]
     return submatrix
 
 
 def filter_dissimilarity_matrix(dissimilarity_matrix, candidate_pairs):
+    """ Filters the dissimilarity matrix to only include dissimilarities for candidate pairs, setting all other
+    values to infinity for [i,j] where i!=j, and [i,j]=0 where i=j."""
     # Initialize a new matrix with infinity values and zeros on the diagonal
     new_matrix = np.full(dissimilarity_matrix.shape, np.inf)
     np.fill_diagonal(new_matrix, 0)
@@ -613,6 +652,10 @@ def filter_dissimilarity_matrix(dissimilarity_matrix, candidate_pairs):
 
 
 def efficient_hierarchical_clustering(distance_matrix, epsilon):
+    """
+    Performs adapted single linkage hierarchical clustering on a distance matrix using a specified threshold
+    (epsilon) with priority heaping. In final model it was chosen not to use this, and to instead use complete linkage.
+    """
     n = len(distance_matrix)
     assert np.allclose(distance_matrix, distance_matrix.T), "Distance matrix must be symmetric"
 
@@ -656,6 +699,8 @@ def efficient_hierarchical_clustering(distance_matrix, epsilon):
 
 
 def agglomerative_hierarchical_clustering(distance_matrix, epsilon, linkage_type='complete'):
+    """ Applies complete linkage agglomerative hierarchical clustering to a distance matrix/dissimilarity matrix with a
+    specified threshold (epsilon). """
     n = len(distance_matrix)
 
     # Using AgglomerativeClustering
@@ -678,6 +723,7 @@ def agglomerative_hierarchical_clustering(distance_matrix, epsilon, linkage_type
 
 
 def get_true_pairs(data):
+    """ Identifies true duplicate pairs in the dataset based on matching model IDs. """
     model_pairs = {}
     for index, products in data.items():
         model_id = products[0]['modelID']
@@ -688,12 +734,15 @@ def get_true_pairs(data):
 
 
 def get_all_pairs(data):
+    """ Generates all possible pairs of data indices, for use in the save_all_dissimilarity_matrices calculations for
+    efficient model optimization and evaluation for this size data set. Not recommended for larger data sets. """
     indices = sorted([int(index) for index in data.keys()])  # Extracting all the indices from the data
     all_pairs = list(combinations(indices, 2))  # Generating all possible pairs ordered i<j
     return all_pairs
 
 
 def calculate_metrics(predicted_pairs_input, true_pairs, candidate_pairs):
+    """ Calculates various metrics like Pair Quality, Pair Completeness, F1*-Score and F1-score for the algorithm. """
     # Star metrics - LSH
     dup_f = len(set(candidate_pairs) & set(true_pairs))  # duplicates found by LSH in candidate pairs
     dup_n = len(true_pairs)  # total number of duplicates in data
@@ -733,6 +782,7 @@ def calculate_metrics(predicted_pairs_input, true_pairs, candidate_pairs):
 
 def run_algorithm_steps(data, binary_matrix, bands, rows_per_band, k_minhash, alpha, beta, gamma, mu,
                         epsilon, true_pairs_input, cluster_extension, n_products, dissimilarity_matrix):
+    """ Executes all the MSMP+, MSMP+ clean or MSMPE algorithm steps and calculates performance metrics and FOC. """
     tot_possible_comparisons = n_products * (n_products - 1) / 2
     true_pairs = get_true_pairs(data)
 
@@ -754,6 +804,7 @@ def run_algorithm_steps(data, binary_matrix, bands, rows_per_band, k_minhash, al
 
 def optimize_parameters(data, binary_matrix, bands, rows_per_band, k_minhash, parameter_ranges_input,
                         true_pairs_input, cluster_extension, n_products, data_name, product_indices):
+    """ Optimizes the algorithm parameters for the best performance on the given dataset. """
     optimal_params = {
         'alpha': parameter_ranges['alpha'][0],
         'beta': parameter_ranges['beta'][0],
@@ -800,6 +851,7 @@ def optimize_parameters(data, binary_matrix, bands, rows_per_band, k_minhash, pa
 
 
 def split_data(data, test_size=0.37):
+    """ Splits the data into training and testing sets. """
     keys = list(data.keys())
     data_training_indices, data_test_indices = train_test_split(keys, test_size=test_size)
     train_data = {str(i): data[key] for i, key in enumerate(data_training_indices)}
@@ -810,6 +862,7 @@ def split_data(data, test_size=0.37):
 
 def run_bootstraps(data, data_name, n_bootstraps_input, t_range_input, parameter_ranges_input, cluster_extension=True,
                    round_numerical_kvp=False):
+    """ Runs bootstrap experiments to evaluate the algorithm's performance over multiple iterations. """
     dict_bootstraps = {}
 
     for i_bootstrap in range(n_bootstraps_input):
@@ -902,6 +955,7 @@ def run_bootstraps(data, data_name, n_bootstraps_input, t_range_input, parameter
 # ----------------------- PLOTTING -----------------------------
 
 def average_metrics_over_bootstraps(bootstrap_results, metric_key):
+    """ Averages the specified metric over multiple bootstrap iterations. """
     averages = {}
     for t_value, results in bootstrap_results.items():
         metric_sum = sum(entry['eval_metrics'][metric_key] for entry in results)
@@ -914,6 +968,9 @@ def average_metrics_over_bootstraps(bootstrap_results, metric_key):
 
 def plot_metric_vs_fraction_averages(metric_key, bootstrap_results1, bootstrap_results2=None,
                                      bootstrap_results3=None):
+    """
+    Plots the average of a specified metric against the fraction of comparisons for different algorithm extensions.
+    """
     averages1 = average_metrics_over_bootstraps(bootstrap_results1, metric_key)
     averages2 = average_metrics_over_bootstraps(bootstrap_results2,
                                                 metric_key) if bootstrap_results2 is not None else None
@@ -945,6 +1002,7 @@ def plot_metric_vs_fraction_averages(metric_key, bootstrap_results1, bootstrap_r
 
 
 def all_metrics_over_bootstraps(bootstrap_results, metric_key):
+    """ Collects all metric values over multiple bootstrap iterations. """
     all_points = []
     for results in bootstrap_results.values():
         for entry in results:
@@ -956,6 +1014,7 @@ def all_metrics_over_bootstraps(bootstrap_results, metric_key):
 
 def plot_metric_vs_fraction_all(metric_key, bootstrap_results1, bootstrap_results2=None,
                                 bootstrap_results3=None, ):
+    """ Plots all metric values against the fraction of comparisons for different algorithm variants. """
     all_points1 = all_metrics_over_bootstraps(bootstrap_results1, metric_key)
     all_points2 = all_metrics_over_bootstraps(bootstrap_results2,
                                               metric_key) if bootstrap_results2 is not None else None
@@ -1000,7 +1059,7 @@ parameter_ranges = {
     'epsilon': np.arange(0.4, 0.85, 0.05),  # 0.85 VAN MAKEN!!!! hiermee beginnen
 }
 
-clean_data_now = False  # True if
+clean_data_now = False  # True if you want to output the cleaned and normalized datasets.
 printer = False  # True to turn debugging mode on
 run_bootstraps_now = False  # True to run the bootstrapping algorithm
 plot_now = True  # True to create the plots of performance measures against FOC
